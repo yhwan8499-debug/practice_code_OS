@@ -9,7 +9,7 @@ import numpy as np
 # ==========================================
 THREADS_LIST = [1, 2, 4, 8, 12, 16, 32, 64, 128]        # X축 스펙
 CHUNK_LIST = [1, 10, 100, 1000, 10000, 100000, 1000000, 5000000, 10000000] # Y축 스펙
-MAX_NUMBER = 100000000                       # 탐색 상한선 (이 값에 따라 폴더가 생성됩니다)
+MAX_NUMBER = 50000000                       # 탐색 상한선 (이 값에 따라 폴더가 생성됩니다)
 LOOP_COUNT = 3                              # 오차 제거를 위한 반복 측정 횟수
 
 C_FILE_NAME = "find_prime.c"
@@ -46,8 +46,11 @@ def main():
     print("🚀 [완전 자동화 매크로] 벤치마크 및 폴더별 4대 그래프 생성을 시작합니다...")
     print(f"📍 총 실험 세트 수: {total_cases}개 (각 세트당 {LOOP_COUNT}회 반복 수행)")
     
-    # 결과 저장용 폴더 자동 생성 구역 (ex: result_50000000)
-    output_dir = f"result_{MAX_NUMBER}"
+    # --------------------------------------------------------
+    # 💻 💡 기기별 결과 분리 구역 (데스크톱용 폴더명 설정)
+    # --------------------------------------------------------
+    ENV_NAME = "desktop"  # 노트북에서 할 때는 "laptop"으로 변경하시면 됩니다.
+    output_dir = f"{ENV_NAME}_result_{MAX_NUMBER}"
     os.makedirs(output_dir, exist_ok=True)
     
     # 격자 구조 데이터 매트릭스 준비 (행: 청크 크기, 열: 스레드 개수)
@@ -82,23 +85,44 @@ def main():
                 grid_times[c_idx, t_idx] = avg_time
 
     # --------------------------------------------------------
-    # 1. 보고서용 마크다운 표 출력 구역 ★ (부활 및 완벽 동기화)
+    # 1. 보고서용 마크다운 표 출력 및 파일 자동 저장 구역 ★
     # --------------------------------------------------------
     print("\n" + "="*60)
     print("📊 보고서에 그대로 복사해서 넣을 마크다운 표 결과")
     print("="*60)
-    print("| CHUNK_SIZE | NUM_THREADS | 평균 수행 시간 (Elapsed Time) |")
-    print("| :--- | :--- | :--- |")
+    
+    # 텍스트 파일로 내보낼 마크다운 문자열 생성
+    md_table_content = "| CHUNK_SIZE | NUM_THREADS | 평균 수행 시간 (Elapsed Time) |\n"
+    md_table_content += "| :--- | :--- | :--- |\n"
+    
     for c_idx, chunk in enumerate(CHUNK_LIST):
         for t_idx, thread in enumerate(THREADS_LIST):
-            print(f"| {chunk} | {thread}개 | {grid_times[c_idx, t_idx]:.4f} s |")
+            md_table_content += f"| {chunk} | {thread}개 | {grid_times[c_idx, t_idx]:.4f} s |\n"
+            
+    # 터미널 창에 표 시각화
+    print(md_table_content)
     print("="*60)
+
+    # 📁 1-1. 마크다운 표를 텍스트 파일(.txt)로 저장
+    txt_output_path = os.path.join(output_dir, "report_table.txt")
+    with open(txt_output_path, "w", encoding="utf-8") as f:
+        f.write(md_table_content)
+    print(f"📝 마크다운 표 파일 저장 완료: {txt_output_path}")
+
+    # 📁 1-2. 엑셀 연동용 CSV 파일로 저장
+    csv_output_path = os.path.join(output_dir, "benchmark_data.csv")
+    with open(csv_output_path, "w", encoding="utf-8") as f:
+        f.write("CHUNK_SIZE,NUM_THREADS,Elapsed_Time(s)\n")
+        for c_idx, chunk in enumerate(CHUNK_LIST):
+            for t_idx, thread in enumerate(THREADS_LIST):
+                f.write(f"{chunk},{thread},{grid_times[c_idx, t_idx]:.4f}\n")
+    print(f"📊 CSV 데이터 파일 저장 완료: {csv_output_path}")
 
     # 시각화용 Grid Mesh 생성
     X_mesh, Y_mesh = np.meshgrid(THREADS_LIST, CHUNK_LIST)
 
     # --------------------------------------------------------
-    # 2. Figure 1 : 3D Surface (지정 폴더 저장 적용)
+    # 2. Figure 1 : 3D Surface
     # --------------------------------------------------------
     print("\n🎨 [Figure 1] 3D Surface 생성 중...")
     fig = plt.figure(figsize=(12, 8))
@@ -114,7 +138,7 @@ def main():
 
     ax.scatter(X_mesh, Y_mesh_log, grid_times, color='red', s=30)
 
-    ax.set_title(f"Execution Time Surface (MAX={MAX_NUMBER:,})", fontsize=14)
+    ax.set_title(f"Execution Time Surface ({ENV_NAME.upper()} MAX={MAX_NUMBER:,})", fontsize=14)
     ax.set_xlabel("Threads")
     ax.set_ylabel("Chunk Size")
     ax.set_zlabel("Time (s)")
@@ -126,19 +150,18 @@ def main():
     ax.view_init(elev=30, azim=-45)
     fig.colorbar(surf, shrink=0.6, aspect=12)
     
-    # 각 파일 저장 경로를 os.path.join을 통해 새로 만든 폴더 내부로 고정 ★
     plt.savefig(os.path.join(output_dir, "Figure1_3D_Surface.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
     # --------------------------------------------------------
-    # 3. Figure 2 : Execution Time vs Thread Count (지정 폴더 저장 적용)
+    # 3. Figure 2 : Execution Time vs Thread Count
     # --------------------------------------------------------
     print("📈 [Figure 2] 2D 실행 시간 선 그래프 생성 중...")
     plt.figure(figsize=(12, 8))
     for c_idx, chunk in enumerate(CHUNK_LIST):
         plt.plot(THREADS_LIST, grid_times[c_idx, :], marker='o', linewidth=2, label=f'CHUNK: {chunk}')
     
-    plt.title("Execution Time vs Thread Count")
+    plt.title(f"Execution Time vs Thread Count ({ENV_NAME.upper()})")
     plt.xscale('log', base=2)
     plt.xticks(THREADS_LIST, THREADS_LIST)
     plt.xlabel("Number of Threads")
@@ -149,7 +172,7 @@ def main():
     plt.close()
 
     # --------------------------------------------------------
-    # 4. Figure 3 : Parallel Speedup (지정 폴더 저장 적용)
+    # 4. Figure 3 : Parallel Speedup
     # --------------------------------------------------------
     print("🚀 [Figure 3] 2D 병렬 가속비(Speedup) 그래프 생성 중...")
     plt.figure(figsize=(12, 8))
@@ -162,7 +185,7 @@ def main():
         speedup = t1_time / grid_times[c_idx, :]
         plt.plot(THREADS_LIST, speedup, marker='s', linewidth=2, label=f'CHUNK: {chunk}')
     
-    plt.title("Parallel Speedup ($S_n = T_1 / T_n$)")
+    plt.title(f"Parallel Speedup ($S_n = T_1 / T_n$) ({ENV_NAME.upper()})")
     plt.xscale('log', base=2)
     plt.xticks(THREADS_LIST, THREADS_LIST)
     plt.xlabel("Number of Threads")
@@ -173,7 +196,7 @@ def main():
     plt.close()
 
     # --------------------------------------------------------
-    # 5. Figure 4 : Heatmap (지정 폴더 저장 적용)
+    # 5. Figure 4 : Heatmap
     # --------------------------------------------------------
     print("🔥 [Figure 4] Heatmap 생성 중...")
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -188,7 +211,7 @@ def main():
 
     ax.set_xlabel("Number of Threads")
     ax.set_ylabel("Chunk Size")
-    ax.set_title(f"Execution Time Heatmap (MAX={MAX_NUMBER:,})")
+    ax.set_title(f"Execution Time Heatmap ({ENV_NAME.upper()} MAX={MAX_NUMBER:,})")
 
     for i in range(len(CHUNK_LIST)):
         for j in range(len(THREADS_LIST)):
@@ -200,7 +223,7 @@ def main():
 
     print(f"\n✨ 대성공! 모든 실험 데이터 표 출력과 그래프 생성이 완료되었습니다.")
     print(f"📁 [저장된 폴더 경로]: {output_dir}/")
-    print(f"📌 포함 파일: Figure1_3D_Surface.png, Figure2_2D_Time.png, Figure3_2D_Speedup.png, Figure4_Heatmap.png")
+    print(f"📌 포함 파일: Figure1~4 이미지, report_table.txt(보고서용 표), benchmark_data.csv(엑셀용 데이터)")
 
 if __name__ == "__main__":
     main()
