@@ -7,7 +7,7 @@
 #include <time.h>
 
 #define NUM_THREADS 128        // 64개의 일꾼, 과제할 때 숫자를 바꿔서 실험하기
-#define MAX_NUMBER 10000000  // 0~1000만까지 소수, 이것도
+#define MAX_NUMBER 50000000  // 0~1000만까지 소수, 이것도
 #define CHUNK_SIZE 10000000       // 1000씩 끊어서 소수 찾기, 마지막에 전역변수에 저장, 이것도
 
 uint32_t current_number = 2;    // current_number: 지금까지 소수를 찾았는가?
